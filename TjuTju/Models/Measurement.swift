@@ -8,7 +8,6 @@
 import Foundation
 
 enum Measurement: String, Codable, CaseIterable {
-    case bodyWeight = "BodyWeight"
     case weight = "Weight"
     case time = "Time"
     case distance = "Distance"

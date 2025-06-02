@@ -4,6 +4,7 @@
 //
 //  Created by Vidas Sun on 02/06/2025.
 //
+
 import SwiftData
 import SwiftUI
 
@@ -22,42 +23,7 @@ struct WorkoutManagerView: View {
                                 .bold()
 
                             ForEach(workoutExercise.sets) { set in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text("Reps:")
-                                        Stepper(
-                                            value: binding(
-                                                for: set, in: workoutExercise,
-                                                keyPath: \.reps), in: 0...100
-                                        ) {
-                                            Text("\(set.reps)")
-                                        }
-                                    }
-
-                                    ForEach(
-                                        Array(
-                                            workoutExercise.exercise
-                                                .measurements.enumerated()),
-                                        id: \.offset
-                                    ) { index, measurement in
-                                        HStack {
-                                            Text("\(measurement.rawValue):")
-                                            Spacer()
-                                            TextField(
-                                                "Value",
-                                                value: binding(
-                                                    for: set,
-                                                    in: workoutExercise,
-                                                    index: index),
-                                                format: .number
-                                            )
-                                            .keyboardType(.decimalPad)
-                                            .multilineTextAlignment(.trailing)
-                                            .frame(width: 80)
-                                        }
-                                    }
-                                }
-                                .padding(.vertical, 6)
+                                workoutSetEditor(set: set, in: workoutExercise)
                             }
                         }
                         .padding(.vertical, 6)
@@ -112,5 +78,54 @@ struct WorkoutManagerView: View {
                 }
             }
         )
+    }
+
+    // MARK: - Workout Set Editor
+
+    @ViewBuilder
+    private func workoutSetEditor(
+        set: ExerciseSet, in workoutExercise: WorkoutExercise
+    ) -> some View {
+        let showReps = workoutExercise.exercise.measurements.contains {
+            $0 == .weight
+        }
+        let repsBinding = binding(
+            for: set, in: workoutExercise, keyPath: \.reps)
+
+        VStack(alignment: .leading, spacing: 6) {
+            if showReps {
+                HStack {
+                    Text("Reps:")
+                    Stepper(
+                        value: Binding(
+                            get: { repsBinding.wrappedValue ?? 0 },
+                            set: { repsBinding.wrappedValue = $0 }
+                        ), in: 0...100
+                    ) {
+                        Text("\(repsBinding.wrappedValue ?? 0)")
+                    }
+                }
+            }
+
+            ForEach(
+                Array(workoutExercise.exercise.measurements.enumerated()),
+                id: \.offset
+            ) { index, measurement in
+                HStack {
+                    Text("\(measurement.rawValue):")
+                    Spacer()
+                    TextField(
+                        "Value",
+                        value: binding(
+                            for: set, in: workoutExercise, index: index),
+                        format: .number
+                    )
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 80)
+                }
+            }
+        }
+        .padding(.vertical, 6)
     }
 }

@@ -67,10 +67,14 @@ struct CreateWorkoutView: View {
                 Section(header: Text(draft.exercise.name).font(.headline)) {
                     ForEach($draft.sets) { $set in
                         VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("Reps:")
-                                Stepper(value: $set.reps, in: 0...100) {
-                                    Text("\(set.reps)")
+                            if draft.exercise.measurements.contains(where: {
+                                $0 == .weight
+                            }) {
+                                HStack {
+                                    Text("Reps:")
+                                    Stepper(value: $set.reps, in: 0...100) {
+                                        Text("\(set.reps)")
+                                    }
                                 }
                             }
 

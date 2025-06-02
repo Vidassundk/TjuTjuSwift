@@ -10,10 +10,10 @@ import SwiftData
 
 @Model
 class ExerciseSet {
-    var reps: Int
-    var values: [Double]  // One per measurement
+    var reps: Int?
+    var values: [Double]
 
-    init(reps: Int, values: [Double]) {
+    init(reps: Int? = nil, values: [Double]) {
         self.reps = reps
         self.values = values
     }
