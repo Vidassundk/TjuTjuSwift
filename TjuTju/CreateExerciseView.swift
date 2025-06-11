@@ -83,10 +83,22 @@ struct CreateExerciseView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let category = ExerciseCategory(name: customCategory)
+                        if !customCategory.trimmingCharacters(in: .whitespaces)
+                            .isEmpty,
+                            !allCategories.contains(where: {
+                                $0.name.lowercased()
+                                    == customCategory.lowercased()
+                            })
+                        {
+                            let newCategory = ExerciseCategory(
+                                name: customCategory)
+                            modelContext.insert(newCategory)
+                            selectedCategories.insert(newCategory)
+                        }
+
                         let newExercise = Exercise(
                             name: name,
-                            exerciseCategories: [category],
+                            exerciseCategories: Array(selectedCategories),
                             measurements: Array(selectedMeasurements)
                         )
                         modelContext.insert(newExercise)

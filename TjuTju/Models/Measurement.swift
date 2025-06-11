@@ -11,4 +11,5 @@ enum Measurement: String, Codable, CaseIterable {
     case weight = "Weight"
     case time = "Time"
     case distance = "Distance"
+    case bodyWeight = "Bodyweight"  // 🆗 camelCase for code, title case for UI
 }

@@ -1,18 +1,55 @@
-//
-//  ExerciseSelectionView.swift
-//  TjuTju
-//
-//  Created by Vidas Sun on 09/06/2025.
-//
-
 import SwiftUI
 
 struct ExerciseSelectionView: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
-    }
-}
+    let allExercises: [Exercise]
+    @Binding var selectedExercises: Set<Exercise>
+    var onDismiss: () -> Void
 
-#Preview {
-    ExerciseSelectionView()
+    @State private var isPresentingNewExercise = false
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                Button {
+                    isPresentingNewExercise = true
+                } label: {
+                    Label("New Custom Exercise", systemImage: "plus.circle")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical)
+                }
+
+                List {
+                    ForEach(allExercises) { exercise in
+                        HStack {
+                            Text(exercise.name)
+                            Spacer()
+                            if selectedExercises.contains(exercise) {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if selectedExercises.contains(exercise) {
+                                selectedExercises.remove(exercise)
+                            } else {
+                                selectedExercises.insert(exercise)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Exercises")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        onDismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $isPresentingNewExercise) {
+                CreateExerciseView()
+            }
+        }
+    }
 }

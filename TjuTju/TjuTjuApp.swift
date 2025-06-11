@@ -16,6 +16,7 @@ struct TjuTjuApp: App {
             Exercise.self,
             WorkoutExercise.self,
             ExerciseCategory.self,
+            UserPreferences.self,
 
         ])
         let modelConfiguration = ModelConfiguration(

@@ -2,6 +2,35 @@ import SwiftData
 import SwiftUI
 
 struct CreateWorkoutView: View {
+
+    @ViewBuilder
+    private func buildMeasurementRow(
+        index: Int,
+        measurement: Measurement,
+        values: Binding<[Double]>
+    ) -> some View {
+        HStack {
+            Text("\(measurement.rawValue):")
+            Spacer()
+            if measurement == .bodyWeight {
+                Text(
+                    String(format: "%.1f", userPreferences.bodyWeight ?? 0)
+                )
+                .foregroundColor(.gray)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            } else {
+                TextField(
+                    "Value",
+                    value: values[index],
+                    format: .number
+                )
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+            }
+        }
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -16,6 +45,8 @@ struct CreateWorkoutView: View {
     @State private var selectedExercises: Set<Exercise> = []
     @State private var workoutDrafts: [WorkoutExerciseDraft] = []
 
+    var userPreferences: UserPreferences
+
     var body: some View {
         Form {
             // Workout Info Section
@@ -29,36 +60,13 @@ struct CreateWorkoutView: View {
                 Toggle("Progressive Overload", isOn: $progressiveOverload)
             }
 
-            // Exercise Selection Section
-            Section(header: Text("Select Exercises")) {
+            Section {
                 Button {
                     isPresentingExerciseModal = true
                 } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add your first exercise")
-                    }
-                    .foregroundColor(.blue)
-                }
-
-                ForEach(allExercises) { exercise in
-                    HStack {
-                        Text(exercise.name)
-                        Spacer()
-                        if selectedExercises.contains(exercise) {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.blue)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if selectedExercises.contains(exercise) {
-                            selectedExercises.remove(exercise)
-                        } else {
-                            selectedExercises.insert(exercise)
-                        }
-                        syncDraftsToSelection()
-                    }
+                    Label("", systemImage: "plus")
+                        .font(.title2)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
 
@@ -82,17 +90,9 @@ struct CreateWorkoutView: View {
                                 Array(draft.exercise.measurements.enumerated()),
                                 id: \.offset
                             ) { index, measurement in
-                                HStack {
-                                    Text("\(measurement.rawValue):")
-                                    Spacer()
-                                    TextField(
-                                        "Value", value: $set.values[index],
-                                        format: .number
-                                    )
-                                    .keyboardType(.decimalPad)
-                                    .multilineTextAlignment(.trailing)
-                                    .frame(width: 80)
-                                }
+                                buildMeasurementRow(
+                                    index: index, measurement: measurement,
+                                    values: $set.values)
                             }
                         }
                         .padding(.vertical, 6)
@@ -138,7 +138,14 @@ struct CreateWorkoutView: View {
         }
         .navigationTitle("New Workout")
         .sheet(isPresented: $isPresentingExerciseModal) {
-            CreateExerciseView()
+            ExerciseSelectionView(
+                allExercises: allExercises,
+                selectedExercises: $selectedExercises,
+                onDismiss: {
+                    syncDraftsToSelection()
+                    isPresentingExerciseModal = false
+                }
+            )
         }
     }
 
@@ -171,11 +178,12 @@ struct CreateWorkoutView: View {
 }
 
 #Preview {
-    CreateWorkoutView()
+    let preferences = UserPreferences(bodyWeight: 72.5)
+    return CreateWorkoutView(userPreferences: preferences)
         .modelContainer(
             for: [
                 Workout.self, Exercise.self, WorkoutExercise.self,
-                ExerciseSet.self,
+                ExerciseSet.self, UserPreferences.self,
             ],
             inMemory: true
         )
