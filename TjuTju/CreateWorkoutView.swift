@@ -1,190 +1,200 @@
+//
+//  CreateWorkoutView.swift
+//  TjuTju
+//
+//  Created by Vidas Sun on 02/06/2025.
+//
+//  This view allows users to construct a new workout routine by giving it a name,
+//  optional settings like duration, and adding a list of exercises.
+//
+
 import SwiftData
 import SwiftUI
 
 struct CreateWorkoutView: View {
-
-    @ViewBuilder
-    private func buildMeasurementRow(
-        index: Int,
-        measurement: Measurement,
-        values: Binding<[Double]>
-    ) -> some View {
-        HStack {
-            Text("\(measurement.rawValue):")
-            Spacer()
-            if measurement == .bodyWeight {
-                Text(
-                    String(format: "%.1f", userPreferences.bodyWeight ?? 0)
-                )
-                .foregroundColor(.gray)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            } else {
-                TextField(
-                    "Value",
-                    value: values[index],
-                    format: .number
-                )
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 80)
-            }
-        }
-    }
+    // MARK: - Environment
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var name: String = ""
-    @State private var duration: Double = 0
-    @State private var progressiveOverload: Bool = false
+    // MARK: - Properties
 
-    @State private var isPresentingExerciseModal = false
-
-    @Query var allExercises: [Exercise]
-
-    @State private var selectedExercises: Set<Exercise> = []
-    @State private var workoutDrafts: [WorkoutExerciseDraft] = []
-
+    /// User-specific preferences, like body weight, passed from the parent view.
     var userPreferences: UserPreferences
 
+    // MARK: - State
+
+    // Workout Details
+    @State private var name: String = ""
+    @State private var duration: Double = 0
+    @State private var hasDuration: Bool = false
+    @State private var progressiveOverload: Bool = false
+
+    // Exercise Selection
+    @State private var isPresentingExerciseModal = false
+    @State private var selectedExercises: Set<Exercise> = []
+
+    /// A temporary representation of the exercises and their sets for this workout.
+    /// This allows users to configure sets/reps before the workout is saved.
+    @State private var workoutDrafts: [WorkoutExerciseDraft] = []
+
+    // MARK: - Data Queries
+
+    @Query(sort: \Exercise.name) private var allExercises: [Exercise]
+
+    // MARK: - Computed Properties
+
+    /// Determines if the save button should be disabled based on form validity.
+    private var isSaveDisabled: Bool {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || workoutDrafts.isEmpty
+    }
+
+    // MARK: - Body
+
     var body: some View {
-        Form {
-            // Workout Info Section
-            Section(header: Text("Workout Info")) {
-                TextField("Name", text: $name)
+        NavigationStack {
+            Form {
+                workoutDetailsSection
 
-                Stepper(value: $duration, in: 0...180, step: 5) {
-                    Text("Duration: \(Int(duration)) min")
-                }
+                addExerciseSection
 
-                Toggle("Progressive Overload", isOn: $progressiveOverload)
-            }
-
-            Section {
-                Button {
-                    isPresentingExerciseModal = true
-                } label: {
-                    Label("", systemImage: "plus")
-                        .font(.title2)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                ForEach($workoutDrafts) { $draft in
+                    WorkoutDraftCard(
+                        draft: $draft,
+                        userPreferences: userPreferences,
+                        labelProvider: self.labelFor
+                    )
                 }
             }
-
-            // One Section per Exercise
-            ForEach($workoutDrafts) { $draft in
-                Section(header: Text(draft.exercise.name).font(.headline)) {
-                    ForEach($draft.sets) { $set in
-                        VStack(alignment: .leading, spacing: 6) {
-                            if draft.exercise.measurements.contains(where: {
-                                $0 == .weight
-                            }) {
-                                HStack {
-                                    Text("Reps:")
-                                    Stepper(value: $set.reps, in: 0...100) {
-                                        Text("\(set.reps)")
-                                    }
-                                }
-                            }
-
-                            ForEach(
-                                Array(draft.exercise.measurements.enumerated()),
-                                id: \.offset
-                            ) { index, measurement in
-                                buildMeasurementRow(
-                                    index: index, measurement: measurement,
-                                    values: $set.values)
-                            }
-                        }
-                        .padding(.vertical, 6)
-                    }
-
-                    Button {
-                        draft.sets.append(
-                            ExerciseSetDraft(
-                                reps: 10,
-                                values: Array(
-                                    repeating: 0.0,
-                                    count: draft.exercise.measurements.count)
-                            )
-                        )
-                    } label: {
-                        Label("Add Set", systemImage: "plus")
-                            .font(.subheadline)
-                    }
-                    .padding(.top, 4)
+            .navigationTitle("New Workout")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: saveWorkout)
+                        .disabled(isSaveDisabled)
                 }
             }
-
-            // Save Button
-            Button("Save Workout") {
-                let workoutExercises = workoutDrafts.map { draft in
-                    let sets = draft.sets.map {
-                        ExerciseSet(reps: $0.reps, values: $0.values)
-                    }
-                    return WorkoutExercise(exercise: draft.exercise, sets: sets)
-                }
-
-                let newWorkout = Workout(
-                    name: name,
-                    exercises: workoutExercises,
-                    duration: duration * 60,
-                    progressiveOverload: progressiveOverload
+            .sheet(
+                isPresented: $isPresentingExerciseModal,
+                onDismiss: syncDraftsToSelection
+            ) {
+                ExerciseSelectionView(
+                    allExercises: allExercises,
+                    selectedExercises: $selectedExercises,
+                    onDismiss: { isPresentingExerciseModal = false }
                 )
-
-                modelContext.insert(newWorkout)
-                dismiss()
             }
-            .disabled(name.isEmpty || workoutDrafts.isEmpty)
-        }
-        .navigationTitle("New Workout")
-        .sheet(isPresented: $isPresentingExerciseModal) {
-            ExerciseSelectionView(
-                allExercises: allExercises,
-                selectedExercises: $selectedExercises,
-                onDismiss: {
-                    syncDraftsToSelection()
-                    isPresentingExerciseModal = false
-                }
-            )
         }
     }
 
-    private func syncDraftsToSelection() {
-        // Add new drafts
-        for exercise in selectedExercises {
-            if !workoutDrafts.contains(where: { $0.exercise.id == exercise.id })
-            {
-                workoutDrafts.append(
-                    WorkoutExerciseDraft(
-                        exercise: exercise,
-                        sets: [
-                            ExerciseSetDraft(
-                                reps: 10,
-                                values: Array(
-                                    repeating: 0.0,
-                                    count: exercise.measurements.count)
-                            )
-                        ]
+    // MARK: - View Components
+
+    /// A section for configuring the workout's name, duration, and progressive overload.
+    private var workoutDetailsSection: some View {
+        Group {
+            Section("Workout Name") {
+                TextField("e.g., Upper Body Strength", text: $name)
+            }
+
+            Section("Optional Settings") {
+                Toggle("Set Duration", isOn: $hasDuration.animation())
+                if hasDuration {
+                    Stepper(value: $duration, in: 0...180, step: 5) {
+                        Text("Duration: \(Int(duration)) min")
+                    }
+                }
+
+                Toggle("Enable Auto-Progression", isOn: $progressiveOverload)
+                if progressiveOverload {
+                    Text(
+                        "We will automatically increase your reps as you get stronger."
                     )
-                )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
             }
         }
+    }
 
-        // Remove drafts for deselected exercises
+    /// A section containing the button to add exercises to the workout.
+    private var addExerciseSection: some View {
+        Section("Exercises") {
+            Button {
+                isPresentingExerciseModal = true
+            } label: {
+                Label("Add Exercise", systemImage: "plus")
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    // MARK: - Private Methods
+
+    /// Provides the correct display name for a measurement, handling the special
+    /// case where "Weight" should be displayed as "Extra Weight".
+    private func labelFor(_ measurement: Measurement, in context: [Measurement])
+        -> String
+    {
+        if measurement == .weight && context.contains(.bodyWeight) {
+            return "Extra Weight"
+        }
+        return measurement.rawValue
+    }
+
+    /// Synchronizes the `workoutDrafts` array with the `selectedExercises` set.
+    /// It adds new drafts for newly selected exercises and removes drafts for deselected ones.
+    private func syncDraftsToSelection() {
+        // Add drafts for exercises that are in `selectedExercises` but not yet in `workoutDrafts`.
+        for exercise in selectedExercises
+        where !workoutDrafts.contains(where: { $0.exercise == exercise }) {
+            let newDraft = WorkoutExerciseDraft(
+                exercise: exercise,
+                sets: [
+                    // Start with one default set.
+                    ExerciseSetDraft(
+                        reps: 10,
+                        values: Array(
+                            repeating: 0.0, count: exercise.measurements.count)
+                    )
+                ]
+            )
+            workoutDrafts.append(newDraft)
+        }
+
+        // Remove drafts for exercises that are no longer in `selectedExercises`.
         workoutDrafts.removeAll { draft in
             !selectedExercises.contains(draft.exercise)
         }
     }
+
+    /// Converts the temporary workout drafts into persistent SwiftData models and saves the workout.
+    private func saveWorkout() {
+        let workoutExercises = workoutDrafts.map { draft in
+            let sets = draft.sets.map { setDraft in
+                ExerciseSet(reps: setDraft.reps, values: setDraft.values)
+            }
+            return WorkoutExercise(exercise: draft.exercise, sets: sets)
+        }
+
+        let newWorkout = Workout(
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            exercises: workoutExercises,
+            duration: hasDuration ? (duration * 60) : nil,  // Store duration in seconds
+            progressiveOverload: progressiveOverload
+        )
+
+        modelContext.insert(newWorkout)
+        dismiss()
+    }
 }
 
 #Preview {
+    // Create a dummy UserPreferences object for the preview.
     let preferences = UserPreferences(bodyWeight: 72.5)
+
     return CreateWorkoutView(userPreferences: preferences)
-        .modelContainer(
-            for: [
-                Workout.self, Exercise.self, WorkoutExercise.self,
-                ExerciseSet.self, UserPreferences.self,
-            ],
-            inMemory: true
-        )
+        .modelContainer(for: [Workout.self, Exercise.self], inMemory: true)
 }

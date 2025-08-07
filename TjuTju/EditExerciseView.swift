@@ -4,76 +4,108 @@
 //
 //  Created by Vidas Sun on 02/06/2025.
 //
+//  This view provides a form for modifying an existing exercise.
+//  Changes are saved automatically to the model thanks to the @Bindable wrapper.
+//
 
 import SwiftData
 import SwiftUI
 
 struct EditExerciseView: View {
+    // MARK: - Environment
+
     @Environment(\.dismiss) private var dismiss
+
+    // MARK: - Properties
+
+    /// The exercise being edited. The @Bindable wrapper ensures that any
+    /// changes made in this view are directly written back to the model.
     @Bindable var exercise: Exercise
 
-    @Query var allCategories: [ExerciseCategory]
-    @State private var selectedMeasurements: Set<Measurement> = []
-    @State private var selectedCategories: Set<ExerciseCategory> = []
+    // MARK: - State
+
+    @State private var isPresentingCategoryModal = false
+
+    // MARK: - Data Queries
+
+    @Query(sort: \ExerciseCategory.name) private var allCategories:
+        [ExerciseCategory]
+
+    // MARK: - Computed Properties
+
+    /// Determines whether the done button should be disabled.
+    private var isDoneDisabled: Bool {
+        exercise.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || exercise.measurements.isEmpty
+    }
+
+    // MARK: - Body
 
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Name")) {
+                Section("Name") {
                     TextField("Exercise name", text: $exercise.name)
                 }
 
-                Section(header: Text("Measurements")) {
+                Section("Measurements to Track") {
                     ForEach(Measurement.allCases, id: \.self) { measurement in
                         MultipleSelectionRow(
                             title: measurement.rawValue,
-                            isSelected: selectedMeasurements.contains(
+                            isSelected: exercise.measurements.contains(
                                 measurement)
                         ) {
-                            if selectedMeasurements.contains(measurement) {
-                                selectedMeasurements.remove(measurement)
-                            } else {
-                                selectedMeasurements.insert(measurement)
-                            }
+                            toggleSelection(
+                                for: measurement, in: &exercise.measurements)
                         }
                     }
                 }
 
-                Section(header: Text("Categories")) {
+                Section("Body Categories") {
                     ForEach(allCategories) { category in
                         MultipleSelectionRow(
                             title: category.name,
-                            isSelected: selectedCategories.contains(category)
+                            isSelected: exercise.exerciseCategories.contains(
+                                category)
                         ) {
-                            if selectedCategories.contains(category) {
-                                selectedCategories.remove(category)
-                            } else {
-                                selectedCategories.insert(category)
-                            }
+                            toggleSelection(
+                                for: category, in: &exercise.exerciseCategories)
                         }
                     }
+
+                    Button {
+                        isPresentingCategoryModal = true
+                    } label: {
+                        Label("Manage Categories", systemImage: "plus.circle")
+                    }
                 }
-            }
-            .onAppear {
-                selectedMeasurements = Set(exercise.measurements)
-                selectedCategories = Set(exercise.exerciseCategories)
             }
             .navigationTitle("Edit Exercise")
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        exercise.measurements = Array(selectedMeasurements)
-                        exercise.exerciseCategories = Array(selectedCategories)
-                        dismiss()
-                    }
-                }
-
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) {
-                        dismiss()
-                    }
+                    Button("Cancel", role: .cancel) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .disabled(isDoneDisabled)
                 }
             }
+            .sheet(isPresented: $isPresentingCategoryModal) {
+                ManageCategoriesView()
+            }
+        }
+    }
+
+    // MARK: - Private Methods
+
+    /// Toggles the presence of an item in an array that functions like a set.
+    private func toggleSelection<T: Hashable>(
+        for item: T, in collection: inout [T]
+    ) {
+        if let index = collection.firstIndex(of: item) {
+            collection.remove(at: index)
+        } else {
+            collection.append(item)
         }
     }
 }

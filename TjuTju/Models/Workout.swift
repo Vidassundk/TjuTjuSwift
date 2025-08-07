@@ -12,11 +12,13 @@ import SwiftData
 class Workout {
     var name: String
     var exercises: [WorkoutExercise]
-    var duration: TimeInterval
+    var duration: TimeInterval?
     var progressiveOverload: Bool
 
     init(
-        name: String, exercises: [WorkoutExercise], duration: TimeInterval,
+        name: String,
+        exercises: [WorkoutExercise],
+        duration: TimeInterval? = nil,
         progressiveOverload: Bool
     ) {
         self.name = name
